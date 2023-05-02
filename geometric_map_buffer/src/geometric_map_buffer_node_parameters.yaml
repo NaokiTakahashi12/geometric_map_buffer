@@ -1,0 +1,28 @@
+geometric_map_buffer_node:
+  frame_id:
+    type: string
+    default_value: map
+    description: GridMap frame id
+  position:
+    x:
+      type: double
+      default_value: 0.0
+      description: default GridMap position
+    y:
+      type: double
+      default_value: 0.0
+      description: default GridMap position
+  geometry:
+    resolution:
+      type: double
+      default_value: 0.05
+      description: default GridMap resolution
+    length:
+      x:
+        type: double
+        default_value: 1.0
+        description: default GridMap x length
+      y:
+        type: double
+        default_value: 1.0
+        description: default GridMap y length

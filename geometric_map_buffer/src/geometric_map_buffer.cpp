@@ -159,16 +159,14 @@ void GeometricMapBuffer::gridSubMapCallback(
     grid_map::Position dist_of_map_to_submap;
     dist_of_map_to_submap.x() = tfs_msg.transform.translation.x;
     dist_of_map_to_submap.y() = tfs_msg.transform.translation.y;
+    dist_of_map_to_submap += grid_submap->getPosition();
     grid_submap->setPosition(dist_of_map_to_submap);
   }
-  const bool result_add_data = m_grid_map_buffer->addDataFrom(
-    *grid_submap,
-    true,
-    true,
-    true);
+  const bool result_add_data = m_grid_map_buffer->addDataFrom(*grid_submap, true, true, true);
   if (not result_add_data) {
     throw std::runtime_error("Failed addDataFrom");
   }
+  m_grid_map_buffer->setTimestamp(grid_submap->getTimestamp());
 }
 
 void GeometricMapBuffer::publishGridMapService(
