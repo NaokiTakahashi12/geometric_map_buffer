@@ -53,6 +53,7 @@ GeometricMapBuffer::GeometricMapBuffer(
   m_tf_buffer(nullptr),
   m_tf_listener(nullptr),
   m_grid_map_publisher(nullptr),
+  m_initial_grid_map_publisher(nullptr),
   m_grid_submap_subscription(nullptr)
 {
   m_grid_map_buffer = std::make_unique<grid_map::GridMap>();
@@ -63,6 +64,10 @@ GeometricMapBuffer::GeometricMapBuffer(
 
   m_grid_map_publisher = node.create_publisher<grid_map_msgs::msg::GridMap>(
     base_topic + "/grid_map",
+    rclcpp::QoS(1)
+  );
+  m_initial_grid_map_publisher = node.create_publisher<grid_map_msgs::msg::GridMap>(
+    base_topic + "/init_grid_map",
     rclcpp::QoS(1)
   );
   m_init_grid_map_subscription = node.create_subscription<grid_map_msgs::msg::GridMap>(
@@ -78,7 +83,7 @@ GeometricMapBuffer::GeometricMapBuffer(
     base_topic + "/grid_submap",
     rclcpp::QoS(2),
     std::bind(
-      &GeometricMapBuffer::gridSubMapCallback,
+      &GeometricMapBuffer::gridSubmapCallback,
       this,
       std::placeholders::_1));
   m_publish_grid_map_service = node.create_service<std_srvs::srv::Empty>(
@@ -92,14 +97,15 @@ GeometricMapBuffer::GeometricMapBuffer(
   );
 }
 
-GeometricMapBuffer::~GeometricMapBuffer()
-{
-}
+GeometricMapBuffer::~GeometricMapBuffer() {}
 
 void GeometricMapBuffer::publishGridMap()
 {
   if (not m_grid_map_publisher) {
-    throw std::runtime_error("Failed publish debug grid_map");
+    throw std::runtime_error("Failed publish grid map");
+  }
+  if (not m_grid_map_buffer) {
+    throw std::runtime_error("Failed access grid map buffer");
   }
   std::lock_guard<std::mutex> grid_map_buffer_lock{m_grid_map_mutex};
   grid_map_msgs::msg::GridMap::UniquePtr grid_map_msg;
@@ -107,17 +113,61 @@ void GeometricMapBuffer::publishGridMap()
   m_grid_map_publisher->publish(std::move(grid_map_msg));
 }
 
-void GeometricMapBuffer::setGridMap(std::unique_ptr<grid_map::GridMap> new_grid_map)
+void GeometricMapBuffer::publishInitialGridMap()
+{
+  if (not m_grid_map_publisher) {
+    throw std::runtime_error("Failed publish initial grid map");
+  }
+  if (not m_grid_map_buffer) {
+    throw std::runtime_error("Failed access grid map buffer");
+  }
+  std::lock_guard<std::mutex> grid_map_buffer_lock{m_grid_map_mutex};
+  grid_map_msgs::msg::GridMap::UniquePtr grid_map_msg;
+  grid_map_msg = grid_map::GridMapRosConverter::toMessage(*m_grid_map_buffer);
+  m_initial_grid_map_publisher->publish(std::move(grid_map_msg));
+}
+
+void GeometricMapBuffer::publishInitialGridMap(GridMapUniquePtr grid_map)
+{
+  if (not m_grid_map_publisher) {
+    throw std::runtime_error("Failed publish initial grid_map");
+  }
+  if (not grid_map) {
+    throw std::runtime_error("Failed access grid map");
+  }
+  grid_map_msgs::msg::GridMap::UniquePtr grid_map_msg;
+  grid_map_msg = grid_map::GridMapRosConverter::toMessage(*grid_map);
+  m_initial_grid_map_publisher->publish(std::move(grid_map_msg));
+}
+
+void GeometricMapBuffer::setGridMap(GeometricMapBuffer::GridMapUniquePtr new_grid_map)
 {
   std::lock_guard<std::mutex> grid_map_buffer_lock{m_grid_map_mutex};
   m_grid_map_buffer.reset();
   m_grid_map_buffer = std::move(new_grid_map);
 }
 
-std::unique_ptr<grid_map::GridMap> GeometricMapBuffer::getGridMap()
+GeometricMapBuffer::GridMapUniquePtr GeometricMapBuffer::getGridMap()
 {
   std::lock_guard<std::mutex> grid_map_buffer_lock{m_grid_map_mutex};
   return std::make_unique<grid_map::GridMap>(*m_grid_map_buffer);
+}
+
+grid_map::GridMap & GeometricMapBuffer::accessGridMap()
+{
+  std::lock_guard<std::mutex> grid_map_buffer_lock{m_grid_map_mutex};
+  return *m_grid_map_buffer;
+}
+
+GeometricMapBuffer::GridMapUniquePtr GeometricMapBuffer::getGridSubmap(
+  const grid_map::Position & position,
+  const grid_map::Length & length)
+{
+  std::lock_guard<std::mutex> grid_map_buffer_lock{m_grid_map_mutex};
+  bool is_success;
+  return std::make_unique<grid_map::GridMap>(
+    m_grid_map_buffer->getSubmap(position, length, is_success)
+  );
 }
 
 void GeometricMapBuffer::initGridMapCallback(
@@ -127,7 +177,7 @@ void GeometricMapBuffer::initGridMapCallback(
   grid_map::GridMapRosConverter::fromMessage(*grid_map_msg, *m_grid_map_buffer);
 }
 
-void GeometricMapBuffer::gridSubMapCallback(
+void GeometricMapBuffer::gridSubmapCallback(
   grid_map_msgs::msg::GridMap::ConstSharedPtr grid_submap_msgs)
 {
   if (not m_tf_buffer) {
@@ -153,7 +203,7 @@ void GeometricMapBuffer::gridSubMapCallback(
         tf2::TimePointZero
       );
     } catch (const tf2::TransformException & e) {
-      std::cerr << e.what() << std::endl;
+      std::cerr << "[GeometricMapBuffer] " << e.what() << std::endl;
       return;
     }
     grid_map::Position dist_of_map_to_submap;

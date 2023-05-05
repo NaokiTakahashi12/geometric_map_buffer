@@ -27,9 +27,8 @@ private:
 
   std::unique_ptr<geometric_map_buffer_node::Params> m_params;
   std::unique_ptr<geometric_map_buffer_node::ParamListener> m_param_listener;
-  std::unique_ptr<GeometricMapBuffer> m_geometric_map_buffer;
+  GeometricMapBuffer::UniquePtr m_geometric_map_buffer;
 };
-
 
 GeometricMapBufferNode::GeometricMapBufferNode(const rclcpp::NodeOptions & node_options)
 : rclcpp::Node(m_this_node_name, node_options)
@@ -59,7 +58,10 @@ GeometricMapBufferNode::GeometricMapBufferNode(const rclcpp::NodeOptions & node_
       m_params->position.y
     )
   );
-  m_geometric_map_buffer->setGridMap(std::move(grid_map));
+  for (grid_map::GridMapIterator itr(*grid_map); !itr.isPastEnd(); ++itr) {
+    grid_map->at("elevation", *itr) = 0;
+  }
+  m_geometric_map_buffer->publishInitialGridMap(std::move(grid_map));
 }
 
 GeometricMapBufferNode::~GeometricMapBufferNode()

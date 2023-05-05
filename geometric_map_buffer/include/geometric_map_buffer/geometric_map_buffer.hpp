@@ -51,13 +51,19 @@ public:
   ~GeometricMapBuffer();
 
   void publishGridMap();
-  void setGridMap(std::unique_ptr<grid_map::GridMap>);
-  std::unique_ptr<grid_map::GridMap> getGridMap();
+  void publishInitialGridMap();
+  void publishInitialGridMap(GridMapUniquePtr);
+  void setGridMap(GridMapUniquePtr);
+  GridMapUniquePtr getGridMap();
+  grid_map::GridMap & accessGridMap();
+  GridMapUniquePtr getGridSubmap(
+    const grid_map::Position &, const grid_map::Length &
+  );
 
 private:
   std::mutex m_grid_map_mutex;
 
-  std::unique_ptr<grid_map::GridMap> m_grid_map_buffer;
+  GridMapUniquePtr m_grid_map_buffer;
 
   rclcpp::Clock::SharedPtr m_node_clock;
   std::unique_ptr<tf2_ros::Buffer> m_tf_buffer;
@@ -65,13 +71,15 @@ private:
   //! base_topic/grid_map
   rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr m_grid_map_publisher;
   //! base_topic/init_grid_map
+  rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr m_initial_grid_map_publisher;
+  //! base_topic/init_grid_map
   rclcpp::Subscription<grid_map_msgs::msg::GridMap>::SharedPtr m_init_grid_map_subscription;
   //! base_topic/grid_submap
   rclcpp::Subscription<grid_map_msgs::msg::GridMap>::SharedPtr m_grid_submap_subscription;
   rclcpp::Service<std_srvs::srv::Empty>::SharedPtr m_publish_grid_map_service;
 
   void initGridMapCallback(grid_map_msgs::msg::GridMap::ConstSharedPtr);
-  void gridSubMapCallback(grid_map_msgs::msg::GridMap::ConstSharedPtr);
+  void gridSubmapCallback(grid_map_msgs::msg::GridMap::ConstSharedPtr);
   void publishGridMapService(
     std_srvs::srv::Empty::Request::ConstSharedPtr,
     std_srvs::srv::Empty::Response::SharedPtr
