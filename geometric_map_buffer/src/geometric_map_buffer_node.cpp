@@ -58,9 +58,6 @@ GeometricMapBufferNode::GeometricMapBufferNode(const rclcpp::NodeOptions & node_
       m_params->position.y
     )
   );
-  for (grid_map::GridMapIterator itr(*grid_map); !itr.isPastEnd(); ++itr) {
-    grid_map->at("elevation", *itr) = 0;
-  }
   m_geometric_map_buffer->publishInitialGridMap(std::move(grid_map));
 }
 
