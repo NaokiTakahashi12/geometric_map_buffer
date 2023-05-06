@@ -59,6 +59,9 @@ GeometricMapBufferNode::GeometricMapBufferNode(const rclcpp::NodeOptions & node_
     )
   );
   m_geometric_map_buffer->publishInitialGridMap(std::move(grid_map));
+  if (m_params->enable_publish_grid_map_service) {
+    m_geometric_map_buffer->enablePublishGridMapService(*this);
+  }
 }
 
 GeometricMapBufferNode::~GeometricMapBufferNode()

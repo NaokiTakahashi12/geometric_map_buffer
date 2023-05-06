@@ -1,4 +1,8 @@
 geometric_map_buffer_node:
+  enable_publish_grid_map_service:
+    type: bool
+    default_value: false
+    description: Enable publish GridMap service
   frame_id:
     type: string
     default_value: map

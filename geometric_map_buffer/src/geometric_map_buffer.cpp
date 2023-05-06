@@ -47,14 +47,17 @@ namespace geometric_map_buffer
 GeometricMapBuffer::GeometricMapBuffer(
   rclcpp::Node & node,
   const std::string & base_topic)
-: m_grid_map_mutex(),
+: m_base_topic(base_topic),
+  m_grid_map_mutex(),
   m_grid_map_buffer(nullptr),
   m_node_clock(nullptr),
   m_tf_buffer(nullptr),
   m_tf_listener(nullptr),
   m_grid_map_publisher(nullptr),
   m_initial_grid_map_publisher(nullptr),
-  m_grid_submap_subscription(nullptr)
+  m_init_grid_map_subscription(nullptr),
+  m_grid_submap_subscription(nullptr),
+  m_publish_grid_map_service(nullptr)
 {
   m_grid_map_buffer = std::make_unique<grid_map::GridMap>();
 
@@ -63,15 +66,15 @@ GeometricMapBuffer::GeometricMapBuffer(
   m_tf_listener = std::make_unique<tf2_ros::TransformListener>(*m_tf_buffer);
 
   m_grid_map_publisher = node.create_publisher<grid_map_msgs::msg::GridMap>(
-    base_topic + "/grid_map",
+    m_base_topic + "/grid_map",
     rclcpp::QoS(1)
   );
   m_initial_grid_map_publisher = node.create_publisher<grid_map_msgs::msg::GridMap>(
-    base_topic + "/init_grid_map",
+    m_base_topic + "/init_grid_map",
     rclcpp::QoS(1)
   );
   m_init_grid_map_subscription = node.create_subscription<grid_map_msgs::msg::GridMap>(
-    base_topic + "/init_grid_map",
+    m_base_topic + "/init_grid_map",
     rclcpp::QoS(1),
     std::bind(
       &GeometricMapBuffer::initGridMapCallback,
@@ -80,14 +83,25 @@ GeometricMapBuffer::GeometricMapBuffer(
     )
   );
   m_grid_submap_subscription = node.create_subscription<grid_map_msgs::msg::GridMap>(
-    base_topic + "/grid_submap",
+    m_base_topic + "/grid_submap",
     rclcpp::QoS(2),
     std::bind(
       &GeometricMapBuffer::gridSubmapCallback,
       this,
-      std::placeholders::_1));
+      std::placeholders::_1
+    )
+  );
+}
+
+GeometricMapBuffer::~GeometricMapBuffer() {}
+
+void GeometricMapBuffer::enablePublishGridMapService(rclcpp::Node & node)
+{
+  if (m_publish_grid_map_service) {
+    return;
+  }
   m_publish_grid_map_service = node.create_service<std_srvs::srv::Empty>(
-    base_topic + "/publish_grid_map",
+    m_base_topic + "/publish_grid_map",
     std::bind(
       &GeometricMapBuffer::publishGridMapService,
       this,
@@ -96,8 +110,6 @@ GeometricMapBuffer::GeometricMapBuffer(
     )
   );
 }
-
-GeometricMapBuffer::~GeometricMapBuffer() {}
 
 void GeometricMapBuffer::publishGridMap()
 {

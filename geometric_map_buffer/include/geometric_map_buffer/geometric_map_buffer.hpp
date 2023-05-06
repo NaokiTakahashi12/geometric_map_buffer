@@ -25,7 +25,6 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <deque>
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/header.hpp>
@@ -47,13 +46,18 @@ public:
 
   explicit GeometricMapBuffer(
     rclcpp::Node &,
-    const std::string & base_topic);
+    const std::string & base_topic = "~");
   ~GeometricMapBuffer();
 
+  void enablePublishGridMapService(rclcpp::Node &);
+
   void publishGridMap();
+
   void publishInitialGridMap();
   void publishInitialGridMap(GridMapUniquePtr);
+
   void setGridMap(GridMapUniquePtr);
+
   GridMapUniquePtr getGridMap();
   grid_map::GridMap & accessGridMap();
   GridMapUniquePtr getGridSubmap(
@@ -61,6 +65,8 @@ public:
   );
 
 private:
+  std::string m_base_topic;
+
   std::mutex m_grid_map_mutex;
 
   GridMapUniquePtr m_grid_map_buffer;
@@ -76,6 +82,7 @@ private:
   rclcpp::Subscription<grid_map_msgs::msg::GridMap>::SharedPtr m_init_grid_map_subscription;
   //! base_topic/grid_submap
   rclcpp::Subscription<grid_map_msgs::msg::GridMap>::SharedPtr m_grid_submap_subscription;
+  //! base_topic/publish_grid_map
   rclcpp::Service<std_srvs::srv::Empty>::SharedPtr m_publish_grid_map_service;
 
   void initGridMapCallback(grid_map_msgs::msg::GridMap::ConstSharedPtr);
