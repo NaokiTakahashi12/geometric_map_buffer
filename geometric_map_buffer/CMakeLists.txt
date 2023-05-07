@@ -7,6 +7,7 @@ endif()
 
 # find dependencies
 find_package(Eigen3 REQUIRED)
+find_package(OpenCV REQUIRED)
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_auto REQUIRED)
 
@@ -17,13 +18,20 @@ generate_parameter_library(geometric_map_buffer_node_parameters
 )
 
 ament_auto_add_library(geometric_map_buffer SHARED
+  src/grid_map_converter.cpp
   src/geometric_map_buffer.cpp
-)
-ament_auto_add_library(geometric_map_buffer_components SHARED
-  src/geometric_map_buffer_node.cpp
 )
 target_link_libraries(geometric_map_buffer
   Eigen3::Eigen
+  ${OpenCV_LIBS}
+)
+target_include_directories(geometric_map_buffer
+  PUBLIC
+    include
+    ${OpenCV_INCLUDE_DIRS}
+)
+ament_auto_add_library(geometric_map_buffer_components SHARED
+  src/geometric_map_buffer_node.cpp
 )
 target_link_libraries(geometric_map_buffer_components
   geometric_map_buffer
@@ -45,6 +53,8 @@ install(
   DIRECTORY include/
   DESTINATION include/
 )
+ament_export_include_directories(include)
+ament_export_libraries(geometric_map_buffer)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
