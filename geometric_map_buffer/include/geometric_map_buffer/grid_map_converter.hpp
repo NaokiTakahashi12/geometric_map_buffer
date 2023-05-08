@@ -34,12 +34,12 @@
 
 namespace geometric_map_buffer::grid_map_converter
 {
-struct ConstructGridMapLayerParameter
+struct BuildGridMapLayerParameters
 {
-  using UniquePtr = std::unique_ptr<ConstructGridMapLayerParameter>;
-  using SharedPtr = std::shared_ptr<ConstructGridMapLayerParameter>;
+  using UniquePtr = std::unique_ptr<BuildGridMapLayerParameters>;
+  using SharedPtr = std::shared_ptr<BuildGridMapLayerParameters>;
 
-  explicit ConstructGridMapLayerParameter();
+  explicit BuildGridMapLayerParameters();
 
   std::string layer_name;
   float lower_value;
@@ -50,6 +50,6 @@ struct ConstructGridMapLayerParameter
 void addLayerFromImage(
   ::grid_map::GridMap &,
   const cv::Mat &,
-  const ConstructGridMapLayerParameter &
+  const BuildGridMapLayerParameters &
 );
 }  // namespace geometric_map_buffer::grid_map_converter

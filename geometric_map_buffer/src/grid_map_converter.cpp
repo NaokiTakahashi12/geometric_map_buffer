@@ -37,7 +37,7 @@ template<typename Type, int NChannels>
 void addLayerFromImageUseParam(
   grid_map::GridMap & grid_map,
   const cv::Mat & cv_mat,
-  const ConstructGridMapLayerParameter & param
+  const BuildGridMapLayerParameters & param
 )
 {
   grid_map::GridMapCvConverter::addLayerFromImage<Type, NChannels>(
@@ -50,7 +50,7 @@ void addLayerFromImageUseParam(
   );
 }
 
-ConstructGridMapLayerParameter::ConstructGridMapLayerParameter()
+BuildGridMapLayerParameters::BuildGridMapLayerParameters()
 : layer_name("elevation"),
   lower_value(0.0),
   upper_value(1.0),
@@ -61,7 +61,7 @@ ConstructGridMapLayerParameter::ConstructGridMapLayerParameter()
 void addLayerFromImage(
   grid_map::GridMap & grid_map,
   const cv::Mat & cv_mat,
-  const ConstructGridMapLayerParameter & param
+  const BuildGridMapLayerParameters & param
 )
 {
   const int cv_mat_encoding = cv_mat.type() & CV_MAT_DEPTH_MASK;
