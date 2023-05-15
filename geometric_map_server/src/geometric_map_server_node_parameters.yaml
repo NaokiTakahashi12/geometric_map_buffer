@@ -21,12 +21,38 @@
 # SOFTWARE.
 
 geometric_map_server_node:
-  map_info_path:
+  map_info:
     type: string
-    description: Load map info file path
+    description: Load grid map info file path
     validation:
       not_empty<>:
   map_frame_id:
     type: string
     default_value: map
-    description: Publish map frame ID
+    description: grid map frame ID
+    validation:
+      not_empty<>:
+  track_grid_submap:
+    frame_id:
+      type: string
+      default_value: base_link
+      description: Track grid submap frame ID. Empty is disable tracking
+    publish_frequency:
+      type: double
+      default_value: 10.0
+      description: Track grid submap publish frequency (Hz)
+      validation:
+        gt_eq<>: 0
+    length:
+      x:
+        type: double
+        default_value: 1
+        description: Track grid submap x length
+        validation:
+          gt_eq<>: 0
+      y:
+        type: double
+        default_value: 1
+        description: Track grid submap y length
+        validation:
+          gt_eq<>: 0

@@ -1,0 +1,3 @@
+geometric_map_server:
+  ros__parameters:
+    map_frame_id: map
