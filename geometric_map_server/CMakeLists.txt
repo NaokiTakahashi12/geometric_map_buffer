@@ -51,6 +51,7 @@ install(
     maps
     config
     launch
+    rviz
   DESTINATION
     "share/${PROJECT_NAME}"
 )

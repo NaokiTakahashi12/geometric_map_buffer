@@ -77,7 +77,7 @@ def generate_declare_launch_arguments():
 
 def generate_launch_nodes():
     this_pkg_name = 'geometric_map_server'
-    # this_pkg_share_dir = get_package_share_directory(this_pkg_name)
+    this_pkg_share_dir = get_package_share_directory(this_pkg_name)
     output = 'screen'
 
     use_sim_time = {'use_sim_time': launch.substitutions.LaunchConfiguration('use_sim_time')}
@@ -103,6 +103,9 @@ def generate_launch_nodes():
                 executable='static_transform_publisher',
                 name='map_to_odom_stf',
                 output=output,
+                parameters=[
+                    use_sim_time
+                ],
                 arguments=[
                     '--frame-id', 'map',
                     '--child-frame-id', 'odom',
@@ -114,11 +117,30 @@ def generate_launch_nodes():
                 executable='static_transform_publisher',
                 name='odom_to_base_stf',
                 output=output,
+                parameters=[
+                    use_sim_time
+                ],
                 arguments=[
                     '--frame-id', 'odom',
                     '--child-frame-id', 'base_link',
                     '--x', '1.5',
                     '--y', '2.5',
+                ]
+            ),
+            launch_ros.actions.Node(
+                package='rviz2',
+                executable='rviz2',
+                name='demo_geometric_map_server_rviz2',
+                output=output,
+                parameters=[
+                    use_sim_time
+                ],
+                arguments=[
+                    '-d', os.path.join(
+                        this_pkg_share_dir,
+                        'rviz',
+                        'demo_grid_map.rviz'
+                    )
                 ]
             )
         ])
