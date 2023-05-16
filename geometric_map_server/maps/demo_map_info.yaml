@@ -1,0 +1,10 @@
+image: demo.png
+layer: elevation
+resolution: 0.05
+upper: 1.0
+lower: -1.0
+alpha_threshold: 0.5
+origin:
+  - 0
+  - 0
+  - 0
