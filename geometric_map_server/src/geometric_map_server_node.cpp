@@ -248,6 +248,10 @@ void GeometricMapServerNode::trackFrameCallback()
       length
     )
   );
+  grid_submap_msg->info.pose.position.x = 0;
+  grid_submap_msg->info.pose.position.y = 0;
+  grid_submap_msg->header.frame_id = m_params->track_grid_submap.frame_id;
+  grid_submap_msg->header.stamp = this->get_clock()->now();
   m_track_grid_submap_publisher->publish(std::move(grid_submap_msg));
 }
 }  // namespace geometric_map_server
