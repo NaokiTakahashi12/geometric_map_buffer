@@ -58,6 +58,8 @@ using GridMapUniquePtr = buffer::GeometricMapBuffer::GridMapUniquePtr;
 
 struct BuildGridMapParameters
 {
+  using UniquePtr = std::unique_ptr<BuildGridMapParameters>;
+
   std::string image_file_path;
   double resolution;
   grid_map::Position position;
@@ -83,7 +85,7 @@ private:
   std::unique_ptr<tf2_ros::Buffer> m_tf_buffer;
   std::unique_ptr<tf2_ros::TransformListener> m_tf_listener;
 
-  BuildGridMapParameters loadGridMapImageParams(const std::string & file_path);
+  BuildGridMapParameters::UniquePtr loadGridMapImageParams(const std::string & file_path);
   GridMapUniquePtr loadGridMapFromMapInfo(const std::string & file_path);
 
   void trackFrameCallback();
@@ -153,29 +155,30 @@ std::string getBaseDir(const std::string & path_string)
   return path.parent_path();
 }
 
-BuildGridMapParameters GeometricMapServerNode::loadGridMapImageParams(
+BuildGridMapParameters::UniquePtr GeometricMapServerNode::loadGridMapImageParams(
   const std::string & file_path
 )
 {
   if (file_path.empty()) {
     throw std::runtime_error("Load construct grid map parameter file path is empty");
   }
-  BuildGridMapParameters build_params;
+  BuildGridMapParameters::UniquePtr build_params;
+  build_params = std::make_unique<BuildGridMapParameters>();
   std::array<float, 3> map_origin{0.f, 0.f, 0.f};
   YAML::Node node{YAML::LoadFile(file_path)};
 
   if (node["origin"]) {
     map_origin = node["origin"].as<std::array<float, 3>>();
   }
-  build_params.position(0) = map_origin[0];
-  build_params.position(1) = map_origin[1];
-  build_params.layer_params.lower_value = map_origin[2] + node["lower"].as<float>();
-  build_params.layer_params.upper_value = map_origin[2] + node["upper"].as<float>();
-  build_params.layer_params.alpha_threshold = node["alpha_threshold"].as<double>();
-  build_params.image_file_path =
+  build_params->position(0) = map_origin[0];
+  build_params->position(1) = map_origin[1];
+  build_params->layer_params.lower_value = map_origin[2] + node["lower"].as<float>();
+  build_params->layer_params.upper_value = map_origin[2] + node["upper"].as<float>();
+  build_params->layer_params.alpha_threshold = node["alpha_threshold"].as<double>();
+  build_params->image_file_path =
     getBaseDir(file_path) + "/" + node["image"].as<std::string>();
-  build_params.resolution = node["resolution"].as<double>();
-  build_params.layer_params.layer_name = node["layer"].as<std::string>();
+  build_params->resolution = node["resolution"].as<double>();
+  build_params->layer_params.layer_name = node["layer"].as<std::string>();
   return build_params;
 }
 
@@ -185,24 +188,24 @@ GridMapUniquePtr GeometricMapServerNode::loadGridMapFromMapInfo(const std::strin
     throw std::runtime_error("Load image file path is empty");
   }
   const auto construct_grid_map_param = loadGridMapImageParams(file_path);
-  const cv::Mat cv_mat = cv::imread(construct_grid_map_param.image_file_path);
+  const cv::Mat cv_mat = cv::imread(construct_grid_map_param->image_file_path);
 
   if (cv_mat.empty()) {
-    throw std::runtime_error("Failed to read " + construct_grid_map_param.image_file_path);
+    throw std::runtime_error("Failed to read " + construct_grid_map_param->image_file_path);
   }
   GridMapUniquePtr grid_map = std::make_unique<grid_map::GridMap>(
     grid_map::GridMap({"elevation"})
   );
   grid_map::GridMapCvConverter::initializeFromImage(
     cv_mat,
-    construct_grid_map_param.resolution,
+    construct_grid_map_param->resolution,
     *grid_map,
-    construct_grid_map_param.position
+    construct_grid_map_param->position
   );
   buffer::grid_map_converter::addLayerFromImage(
     *grid_map,
     cv_mat,
-    construct_grid_map_param.layer_params
+    construct_grid_map_param->layer_params
   );
   return grid_map;
 }
