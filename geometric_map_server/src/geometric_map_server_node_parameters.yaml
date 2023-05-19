@@ -56,3 +56,10 @@ geometric_map_server_node:
         description: Track grid submap y length
         validation:
           gt_eq<>: 0
+  default_save_layer:
+    type: string
+    description: Default save grid map layer
+    read_only: true
+    default_value: elevation
+    validation:
+      not_empty<>:
