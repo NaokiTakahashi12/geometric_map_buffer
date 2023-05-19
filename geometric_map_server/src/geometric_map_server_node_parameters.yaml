@@ -63,3 +63,10 @@ geometric_map_server_node:
     default_value: elevation
     validation:
       not_empty<>:
+  default_save_image_alpha_threshold:
+    type: double
+    description: Default save grid map image alpha threshold
+    read_only: true
+    default_value: 0.5
+    validation:
+      gt_eq<>: 0

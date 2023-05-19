@@ -281,6 +281,8 @@ void GeometricMapServerNode::saveGridMapCallback(
   map_msgs::srv::SaveMap::Response::SharedPtr
 )
 {
+  RCLCPP_INFO(this->get_logger(), "Called saveGridMapCallback");
+
   if (not m_params) {
     throw std::runtime_error("m_params is null");
   }
@@ -302,73 +304,62 @@ void GeometricMapServerNode::saveGridMapCallback(
   const std::string base_name = path.stem();
   const std::string map_image_filename = base_name + ".png";
   const std::string map_info_filename = base_name + "_map_info.yaml";
-  YAML::Node map_info_yaml{};
-
   decltype(auto) grid_map = m_geometric_map_buffer->accessGridMap();
   std::array<float, 3> grid_map_3d_position{0};
 
-  //! @todo remove hard-codeed save layer
-  bool found_default_layer = false;
   if (0 >= grid_map.getLayers().size()) {
     RCLCPP_ERROR_STREAM(this->get_logger(), "Empty grid map layer");
     return;
   }
-  for (const auto & layer : grid_map.getLayers()) {
-    if (layer == m_params->default_save_layer) {
-      found_default_layer = true;
-      break;
-    }
-  }
+  const auto default_layer_itr = std::find(
+    grid_map.getLayers().cbegin(),
+    grid_map.getLayers().cend(),
+    m_params->default_save_layer
+  );
+  const bool found_default_layer = default_layer_itr == grid_map.getLayers().cend();
   std::string save_layer_name{};
+
   if (found_default_layer) {
     save_layer_name = m_params->default_save_layer;
   } else {
     save_layer_name = grid_map.getLayers()[0];
   }
-  bool first_grid_cell = true;
-  double max_grid_cell_value = 0;
-  {
-    for (grid_map::GridMapIterator itr(grid_map); !itr.isPastEnd(); ++itr) {
-      decltype(auto) grid_cell_value = grid_map.at(save_layer_name, *itr);
-      if (std::exchange(first_grid_cell, false)) {
-        max_grid_cell_value = grid_cell_value;
-      }
-      if (max_grid_cell_value < grid_cell_value) {
-        max_grid_cell_value = grid_cell_value;
-      }
-    }
-  }
-  first_grid_cell = true;
-  double min_grid_cell_value = 0;
-  {
-    for (grid_map::GridMapIterator itr(grid_map); !itr.isPastEnd(); ++itr) {
-      decltype(auto) grid_cell_value = grid_map.at(save_layer_name, *itr);
-      if (std::exchange(first_grid_cell, false)) {
-        min_grid_cell_value = grid_cell_value;
-      }
-      if (min_grid_cell_value > grid_cell_value) {
-        min_grid_cell_value = grid_cell_value;
-      }
-    }
-  }
+  const double max_grid_cell_value = grid_map.get(save_layer_name).maxCoeffOfFinites();
+  const double min_grid_cell_value = grid_map.get(save_layer_name).minCoeffOfFinites();
+  YAML::Node map_info_yaml{};
   grid_map_3d_position[0] = grid_map.getPosition()[0];
   grid_map_3d_position[1] = grid_map.getPosition()[1];
 
+  //! @todo format
   map_info_yaml["image"] = map_image_filename;
   map_info_yaml["resolution"] = grid_map.getResolution();
   map_info_yaml["upper"] = max_grid_cell_value;
   map_info_yaml["lower"] = min_grid_cell_value;
   map_info_yaml["layer"] = save_layer_name;
-  //! @todo
-  map_info_yaml["alpha_threshold"] = 0.5;
+  map_info_yaml["alpha_threshold"] = m_params->default_save_image_alpha_threshold;
   map_info_yaml["origin"] = grid_map_3d_position;
   map_info_yaml["timestamp"] = grid_map.getTimestamp();
 
-  RCLCPP_INFO_STREAM(this->get_logger(), "Output yaml is \n" << map_info_yaml);
   try {
     std::ofstream map_info_file;
     map_info_file.open(map_info_filename);
     map_info_file << map_info_yaml;
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR_STREAM(this->get_logger(), e.what());
+    return;
+  }
+  //! @todo parameterize imagedata type?
+  cv::Mat grid_layer_image{};
+  grid_map::GridMapCvConverter::toImage<uint8_t, 1>(
+    grid_map,
+    save_layer_name,
+    CV_8UC1,
+    min_grid_cell_value,
+    max_grid_cell_value,
+    grid_layer_image
+  );
+  try {
+    cv::imwrite(map_image_filename, grid_layer_image);
   } catch (const std::exception & e) {
     RCLCPP_ERROR_STREAM(this->get_logger(), e.what());
     return;
