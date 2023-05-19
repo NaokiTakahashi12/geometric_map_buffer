@@ -20,14 +20,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <stdexcept>
 #include <memory>
 #include <string>
 #include <array>
 #include <algorithm>
 #include <utility>
 #include <chrono>
+#include <functional>
 #include <filesystem>
-#include <stdexcept>
+#include <fstream>
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -42,6 +44,7 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <grid_map_msgs/msg/grid_map.hpp>
+#include <map_msgs/srv/save_map.hpp>
 #include <tf2/exceptions.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -58,6 +61,8 @@ using GridMapUniquePtr = buffer::GeometricMapBuffer::GridMapUniquePtr;
 
 struct BuildGridMapParameters
 {
+  using UniquePtr = std::unique_ptr<BuildGridMapParameters>;
+
   std::string image_file_path;
   double resolution;
   grid_map::Position position;
@@ -80,13 +85,18 @@ private:
 
   rclcpp::TimerBase::SharedPtr m_track_frame_timer;
   rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr m_track_grid_submap_publisher;
+  rclcpp::Service<map_msgs::srv::SaveMap>::SharedPtr m_save_grid_map_service;
   std::unique_ptr<tf2_ros::Buffer> m_tf_buffer;
   std::unique_ptr<tf2_ros::TransformListener> m_tf_listener;
 
-  BuildGridMapParameters loadGridMapImageParams(const std::string & file_path);
+  BuildGridMapParameters::UniquePtr loadGridMapImageParams(const std::string & file_path);
   GridMapUniquePtr loadGridMapFromMapInfo(const std::string & file_path);
 
   void trackFrameCallback();
+  void saveGridMapCallback(
+    map_msgs::srv::SaveMap::Request::ConstSharedPtr,
+    map_msgs::srv::SaveMap::Response::SharedPtr
+  );
 };
 
 GeometricMapServerNode::GeometricMapServerNode(const rclcpp::NodeOptions & node_options)
@@ -96,6 +106,7 @@ GeometricMapServerNode::GeometricMapServerNode(const rclcpp::NodeOptions & node_
   m_params(nullptr),
   m_track_frame_timer(nullptr),
   m_track_grid_submap_publisher(nullptr),
+  m_save_grid_map_service(nullptr),
   m_tf_buffer(nullptr),
   m_tf_listener(nullptr)
 {
@@ -140,6 +151,15 @@ GeometricMapServerNode::GeometricMapServerNode(const rclcpp::NodeOptions & node_
         << ")"
     );
   }
+  m_save_grid_map_service = this->create_service<map_msgs::srv::SaveMap>(
+    "~/save_grid_map",
+    std::bind(
+      &GeometricMapServerNode::saveGridMapCallback,
+      this,
+      std::placeholders::_1,
+      std::placeholders::_2
+    )
+  );
 }
 
 GeometricMapServerNode::~GeometricMapServerNode()
@@ -153,29 +173,30 @@ std::string getBaseDir(const std::string & path_string)
   return path.parent_path();
 }
 
-BuildGridMapParameters GeometricMapServerNode::loadGridMapImageParams(
+BuildGridMapParameters::UniquePtr GeometricMapServerNode::loadGridMapImageParams(
   const std::string & file_path
 )
 {
   if (file_path.empty()) {
     throw std::runtime_error("Load construct grid map parameter file path is empty");
   }
-  BuildGridMapParameters build_params;
+  BuildGridMapParameters::UniquePtr build_params;
+  build_params = std::make_unique<BuildGridMapParameters>();
   std::array<float, 3> map_origin{0.f, 0.f, 0.f};
   YAML::Node node{YAML::LoadFile(file_path)};
 
   if (node["origin"]) {
     map_origin = node["origin"].as<std::array<float, 3>>();
   }
-  build_params.position(0) = map_origin[0];
-  build_params.position(1) = map_origin[1];
-  build_params.layer_params.lower_value = map_origin[2] + node["lower"].as<float>();
-  build_params.layer_params.upper_value = map_origin[2] + node["upper"].as<float>();
-  build_params.layer_params.alpha_threshold = node["alpha_threshold"].as<double>();
-  build_params.image_file_path =
+  build_params->position(0) = map_origin[0];
+  build_params->position(1) = map_origin[1];
+  build_params->layer_params.lower_value = map_origin[2] + node["lower"].as<float>();
+  build_params->layer_params.upper_value = map_origin[2] + node["upper"].as<float>();
+  build_params->layer_params.alpha_threshold = node["alpha_threshold"].as<double>();
+  build_params->image_file_path =
     getBaseDir(file_path) + "/" + node["image"].as<std::string>();
-  build_params.resolution = node["resolution"].as<double>();
-  build_params.layer_params.layer_name = node["layer"].as<std::string>();
+  build_params->resolution = node["resolution"].as<double>();
+  build_params->layer_params.layer_name = node["layer"].as<std::string>();
   return build_params;
 }
 
@@ -185,24 +206,24 @@ GridMapUniquePtr GeometricMapServerNode::loadGridMapFromMapInfo(const std::strin
     throw std::runtime_error("Load image file path is empty");
   }
   const auto construct_grid_map_param = loadGridMapImageParams(file_path);
-  const cv::Mat cv_mat = cv::imread(construct_grid_map_param.image_file_path);
+  const cv::Mat cv_mat = cv::imread(construct_grid_map_param->image_file_path);
 
   if (cv_mat.empty()) {
-    throw std::runtime_error("Failed to read " + construct_grid_map_param.image_file_path);
+    throw std::runtime_error("Failed to read " + construct_grid_map_param->image_file_path);
   }
   GridMapUniquePtr grid_map = std::make_unique<grid_map::GridMap>(
     grid_map::GridMap({"elevation"})
   );
   grid_map::GridMapCvConverter::initializeFromImage(
     cv_mat,
-    construct_grid_map_param.resolution,
+    construct_grid_map_param->resolution,
     *grid_map,
-    construct_grid_map_param.position
+    construct_grid_map_param->position
   );
   buffer::grid_map_converter::addLayerFromImage(
     *grid_map,
     cv_mat,
-    construct_grid_map_param.layer_params
+    construct_grid_map_param->layer_params
   );
   return grid_map;
 }
@@ -253,6 +274,97 @@ void GeometricMapServerNode::trackFrameCallback()
   grid_submap_msg->header.frame_id = m_params->track_grid_submap.frame_id;
   grid_submap_msg->header.stamp = this->get_clock()->now();
   m_track_grid_submap_publisher->publish(std::move(grid_submap_msg));
+}
+
+void GeometricMapServerNode::saveGridMapCallback(
+  map_msgs::srv::SaveMap::Request::ConstSharedPtr request,
+  map_msgs::srv::SaveMap::Response::SharedPtr
+)
+{
+  RCLCPP_INFO(this->get_logger(), "Called saveGridMapCallback");
+
+  if (not m_params) {
+    throw std::runtime_error("m_params is null");
+  }
+  if (not m_geometric_map_buffer) {
+    throw std::runtime_error("m_geometric_map_buffer is null");
+  }
+  if (not m_save_grid_map_service) {
+    throw std::runtime_error("m_save_grid_map_service is null");
+  }
+  if (request->filename.data.empty()) {
+    RCLCPP_WARN_STREAM(this->get_logger(), "Empty save grid map file path");
+    return;
+  }
+  const std::filesystem::path path{request->filename.data};
+
+  if (not path.extension().empty()) {
+    RCLCPP_WARN_STREAM(this->get_logger(), "Ignore save file extension " << path.extension());
+  }
+  const std::string base_name = path.stem();
+  const std::string map_image_filename = base_name + ".png";
+  const std::string map_info_filename = base_name + "_map_info.yaml";
+  decltype(auto) grid_map = m_geometric_map_buffer->accessGridMap();
+  std::array<float, 3> grid_map_3d_position{0};
+
+  if (0 >= grid_map.getLayers().size()) {
+    RCLCPP_ERROR_STREAM(this->get_logger(), "Empty grid map layer");
+    return;
+  }
+  const auto default_layer_itr = std::find(
+    grid_map.getLayers().cbegin(),
+    grid_map.getLayers().cend(),
+    m_params->default_save_layer
+  );
+  const bool found_default_layer = default_layer_itr == grid_map.getLayers().cend();
+  std::string save_layer_name{};
+
+  if (found_default_layer) {
+    save_layer_name = m_params->default_save_layer;
+  } else {
+    save_layer_name = grid_map.getLayers()[0];
+  }
+  const double max_grid_cell_value = grid_map.get(save_layer_name).maxCoeffOfFinites();
+  const double min_grid_cell_value = grid_map.get(save_layer_name).minCoeffOfFinites();
+  YAML::Node map_info_yaml{};
+  grid_map_3d_position[0] = grid_map.getPosition()[0];
+  grid_map_3d_position[1] = grid_map.getPosition()[1];
+
+  //! @todo format
+  map_info_yaml["image"] = map_image_filename;
+  map_info_yaml["resolution"] = grid_map.getResolution();
+  map_info_yaml["upper"] = max_grid_cell_value;
+  map_info_yaml["lower"] = min_grid_cell_value;
+  map_info_yaml["layer"] = save_layer_name;
+  map_info_yaml["alpha_threshold"] = m_params->default_save_image_alpha_threshold;
+  map_info_yaml["origin"] = grid_map_3d_position;
+  map_info_yaml["timestamp"] = grid_map.getTimestamp();
+
+  try {
+    std::ofstream map_info_file;
+    map_info_file.open(map_info_filename);
+    map_info_file << map_info_yaml;
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR_STREAM(this->get_logger(), e.what());
+    return;
+  }
+  //! @todo parameterize imagedata type?
+  cv::Mat grid_layer_image{};
+  grid_map::GridMapCvConverter::toImage<uint8_t, 1>(
+    grid_map,
+    save_layer_name,
+    CV_8UC1,
+    min_grid_cell_value,
+    max_grid_cell_value,
+    grid_layer_image
+  );
+  try {
+    cv::imwrite(map_image_filename, grid_layer_image);
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR_STREAM(this->get_logger(), e.what());
+    return;
+  }
+  RCLCPP_INFO_STREAM(this->get_logger(), "Save " << map_info_filename << " file successful");
 }
 }  // namespace geometric_map_server
 
