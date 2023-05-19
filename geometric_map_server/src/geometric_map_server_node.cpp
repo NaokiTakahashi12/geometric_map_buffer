@@ -304,6 +304,8 @@ void GeometricMapServerNode::saveGridMapCallback(
   const std::string base_name = path.stem();
   const std::string map_image_filename = base_name + ".png";
   const std::string map_info_filename = base_name + "_map_info.yaml";
+  const std::string map_image_filepath = std::string(path.parent_path()) + "/" + map_image_filename;
+  const std::string map_info_filepath = std::string(path.parent_path()) + "/" + map_info_filename;
   decltype(auto) grid_map = m_geometric_map_buffer->accessGridMap();
   std::array<float, 3> grid_map_3d_position{0};
 
@@ -342,7 +344,7 @@ void GeometricMapServerNode::saveGridMapCallback(
 
   try {
     std::ofstream map_info_file;
-    map_info_file.open(map_info_filename);
+    map_info_file.open(map_info_filepath);
     map_info_file << map_info_yaml;
   } catch (const std::exception & e) {
     RCLCPP_ERROR_STREAM(this->get_logger(), e.what());
@@ -359,12 +361,12 @@ void GeometricMapServerNode::saveGridMapCallback(
     grid_layer_image
   );
   try {
-    cv::imwrite(map_image_filename, grid_layer_image);
+    cv::imwrite(map_image_filepath, grid_layer_image);
   } catch (const std::exception & e) {
     RCLCPP_ERROR_STREAM(this->get_logger(), e.what());
     return;
   }
-  RCLCPP_INFO_STREAM(this->get_logger(), "Save " << map_info_filename << " file successful");
+  RCLCPP_INFO_STREAM(this->get_logger(), "Save " << map_info_filepath << " file successful");
 }
 }  // namespace geometric_map_server
 
